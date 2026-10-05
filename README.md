@@ -5,8 +5,8 @@
 ![Rootless](https://img.shields.io/badge/root-not%20required-brightgreen)
 ![QEMU](https://img.shields.io/badge/powered%20by-QEMU-ff6600?logo=qemu&logoColor=white)
 ![Alpine](https://img.shields.io/badge/guest-Alpine%20Linux-0D597F?logo=alpinelinux&logoColor=white)
-[![License](https://img.shields.io/github/license/je0p/AVMiaj)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/je0p/AVMiaj?style=flat)](https://github.com/USER/AVMiaj/stargazers)
+[![License](https://img.shields.io/github/license/USER/AVMiaj)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/USER/AVMiaj?style=flat)](https://github.com/USER/AVMiaj/stargazers)
 
 **Alpine Linux VM in a single Java file: no root, no `--privileged`, no pre-installed QEMU.**
 
@@ -22,10 +22,11 @@ AVMiaj downloads QEMU on its own (as `.deb` packages extracted locally), fetches
 - Automatic QEMU download with all dependencies (`apt-get download` + `dpkg-deb -x`)
 - Automatic download of the newest `alpine-virt` ISO
 - KVM acceleration when `/dev/kvm` is available, TCG software emulation otherwise
-- Persistent 768 MiB virtual disk: install once, boot whenever you want
+- Persistent virtual disk (768 MB by default): install once, boot whenever you want
+- In-program settings menu: RAM, CPUs, disk size and port forwards, no startup flags needed (made for panels like Pterodactyl)
 - Auto-login as `root` once the login prompt appears
 - Console over stdin/stdout, panel-friendly (partial lines are flushed with a newline)
-- User-mode (NAT) networking: the VM has internet access out of the box
+- User-mode (NAT) networking with optional port forwarding (TCP/UDP): the VM has internet access out of the box and can accept connections
 
 ## Requirements
 
@@ -45,7 +46,7 @@ Compile:
 javac Main.java
 ```
 
-Run (asks interactively what to do):
+Run (shows a menu: boot / install / settings):
 
 ```bash
 java Main
@@ -57,6 +58,22 @@ Or skip the prompt with a flag:
 java Main --install   # first run: install Alpine to the virtual disk
 java Main --run       # boot the installed system
 ```
+
+### Settings
+
+Can't change startup flags (e.g. in Pterodactyl)? Pick **Settings** in the menu instead. It works over the panel console:
+
+| Option | Default | Notes |
+|---|---|---|
+| RAM | 512 MB | |
+| CPUs | 1 | |
+| Disk size | 768 MB | applies only when the disk is created; delete `alpine-disk.img` to recreate it |
+| Port forwards | none | `host:guest`, comma-separated, `/udp` for UDP, e.g. `25565:25565,2222:22` |
+
+Settings are saved to `config.properties` (see below), so you can also edit that file in your panel's file manager.
+
+> [!NOTE]
+> Port forwards must use host ports allocated to your server. Ports below 1024 usually need root.
 
 ### Typical workflow
 
@@ -79,6 +96,7 @@ By default in `~/.avmiaj/` (if your home directory is writable), otherwise in `$
 | `qemu-root/` | extracted QEMU and its libraries |
 | `alpine-virt.iso` | Alpine installation image |
 | `alpine-disk.img` | the VM's virtual disk |
+| `config.properties` | saved settings (RAM, CPUs, disk, port forwards) |
 
 To start from scratch, delete that directory.
 
@@ -89,11 +107,12 @@ To start from scratch, delete that directory.
 3. `dpkg-deb -x` extracts them into `qemu-root/`
 4. `LD_LIBRARY_PATH` is built from every directory containing `.so` files
 5. `QEMU_MODULE_DIR` points to QEMU's dynamic modules (e.g. `accel-tcg-x86_64.so`)
-6. QEMU starts with `-m 512`, `-nographic`, a virtio disk and an e1000 NIC
+6. QEMU starts with your `-m` / `-smp` settings, `-nographic`, a virtio disk and an e1000 NIC with your `hostfwd` rules
 
 ## Limitations
 
+- Many game hosts forbid running anything other than the game in their ToS. Check your provider's rules before using this on their panel
 - x86_64 only, and the host needs apt/dpkg tools
 - Without KVM the VM is slow (TCG emulation)
-- User-mode networking: outgoing traffic works, incoming needs extra QEMU config (port forwarding)
-- Defaults are 512 MB RAM and a 768 MiB disk; change them in the code (`-m`, `setLength`)
+- User-mode networking: outgoing traffic works, incoming only for the ports you forward in Settings
+- Disk size can't be changed after the disk is created (delete the image to recreate it)
