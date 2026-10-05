@@ -5,10 +5,10 @@
 ![Rootless](https://img.shields.io/badge/root-not%20required-brightgreen)
 ![QEMU](https://img.shields.io/badge/powered%20by-QEMU-ff6600?logo=qemu&logoColor=white)
 ![Alpine](https://img.shields.io/badge/guest-Alpine%20Linux-0D597F?logo=alpinelinux&logoColor=white)
-[![License](https://img.shields.io/github/license/USER/AVMiaj)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/USER/AVMiaj?style=flat)](https://github.com/USER/AVMiaj/stargazers)
+[![License](https://img.shields.io/github/license/je0p/AVMiaj)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/je0p/AVMiaj?style=flat)](https://github.com/je0p/AVMiaj/stargazers)
 
-**Alpine Linux VM in a single Java file: no root, no `--privileged`, no pre-installed QEMU.**
+**Alpine Linux VM in a single jar: no root, no `--privileged`, no pre-installed QEMU.**
 
 *AVMiaj = **A**lpine-**VM**-**i**n-**a**-**j**ar*
 
@@ -20,7 +20,7 @@ AVMiaj downloads QEMU on its own (as `.deb` packages extracted locally), fetches
 
 - Zero root: nothing is installed system-wide, `/var/lib/dpkg` is never touched
 - Automatic QEMU download with all dependencies (`apt-get download` + `dpkg-deb -x`)
-- Automatic download of the newest `alpine-virt` ISO
+- Automatic download of the newest `alpine-virt` ISO, verified against Alpine's published SHA-256 checksum
 - KVM acceleration when `/dev/kvm` is available, TCG software emulation otherwise
 - Persistent virtual disk (768 MB by default): install once, boot whenever you want
 - In-program settings menu: RAM, CPUs, disk size and port forwards, no startup flags needed (made for panels like Pterodactyl)
@@ -32,7 +32,7 @@ AVMiaj downloads QEMU on its own (as `.deb` packages extracted locally), fetches
 
 - Linux x86_64 with Debian/Ubuntu tooling (`apt-get`, `apt-cache`, `dpkg-deb`). Root is **not** required
 - Java 11+
-- Internet access (Debian mirrors + `dl-cdn.alpinelinux.org`)
+- Internet access (your apt mirrors + `dl-cdn.alpinelinux.org`)
 - About 1 GB of free disk space (QEMU packages + VM disk)
 
 ## Usage
@@ -40,24 +40,39 @@ AVMiaj downloads QEMU on its own (as `.deb` packages extracted locally), fetches
 > [!WARNING]
 > Many game hosts forbid running anything other than the game in their ToS. Check your provider's rules before using AVMiaj on their panel, or you risk getting your server suspended or banned.
 
-Compile:
+Build (needs a JDK 11+):
 
 ```bash
-javac Main.java
+mkdir out
+javac -d out $(find src -name '*.java')
+jar cfe avmiaj.jar avmiaj.Main -C out .
 ```
+
+Or use a prebuilt `avmiaj.jar` from the Releases page. Releases are built by GitHub Actions from the source in this repo, with a `.sha256` file next to the jar.
+
+Handy for a panel's startup command: `java -jar avmiaj.jar`.
 
 Run (shows a menu: boot / install / settings):
 
 ```bash
-java Main
+java -jar avmiaj.jar
 ```
 
-Or skip the prompt with a flag:
+Or skip the prompt with an option:
 
 ```bash
-java Main --install   # first run: install Alpine to the virtual disk
-java Main --run       # boot the installed system
+java -jar avmiaj.jar --install   # first run: install Alpine to the virtual disk
+java -jar avmiaj.jar --run       # boot the installed system
+java -jar avmiaj.jar --help      # show usage
 ```
+
+| Option | Description |
+|---|---|
+| `--install` | install Alpine to the virtual disk (first run) |
+| `--run` | boot the installed system |
+| `-h`, `--help` | show usage and exit |
+
+Unknown options and `--install` together with `--run` are rejected with an error (exit code 2).
 
 ### Settings
 
@@ -77,18 +92,40 @@ Settings are saved to `config.properties` (see below), so you can also edit that
 
 ### Typical workflow
 
-1. `java Main --install` downloads QEMU and the ISO, then boots the Alpine installer
+1. `java -jar avmiaj.jar --install` downloads QEMU and the ISO, then boots the Alpine installer
 2. In the VM console run `setup-alpine` and install to `/dev/vda`
 3. Shut the VM down (`poweroff`)
-4. From now on: `java Main --run`
+4. From now on: `java -jar avmiaj.jar --run`
 
-### Exiting the VM
+### Stopping
 
-Press `Ctrl+A`, then `X` (kills QEMU).
+Type `stop` in the console: it kills the VM and exits AVMiaj. This is also what a panel's **Stop** button usually sends, so it works out of the box. `stop` also works at the menu and settings prompts.
+
+For a clean shutdown of the guest, run `poweroff` inside the VM first.
+
+## What it downloads
+
+AVMiaj contacts only these, and nothing else:
+
+- **QEMU and its dependencies**: `.deb` packages from the apt repositories already configured on the host (`apt-get download`; the system's package database is not touched)
+- **Alpine Linux ISO**: from `https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/`, verified against the SHA-256 checksum published next to it
+
+No telemetry. Everything is written inside the work directory (see below), nothing is installed system-wide. The only hard-coded URL in the code is the Alpine one (`AlpineIso.java`).
+
+## Project layout
+
+| File | Purpose |
+|---|---|
+| `src/avmiaj/Main.java` | entry point, command-line options |
+| `src/avmiaj/Config.java` | paths and saved settings |
+| `src/avmiaj/Menu.java` | interactive menu, settings, the `stop` command |
+| `src/avmiaj/QemuInstaller.java` | downloads and extracts QEMU with apt (no root) |
+| `src/avmiaj/AlpineIso.java` | downloads the Alpine ISO, verifies SHA-256 |
+| `src/avmiaj/Vm.java` | starts QEMU, console, auto-login |
 
 ## File locations
 
-By default in `~/.avmiaj/` (if your home directory is writable), otherwise in `$TMPDIR/avmiaj/`:
+By default in `~/.avmiaj/` (if your home directory is writable), otherwise in `avmiaj/` inside Java's temp directory (usually `/tmp`):
 
 | Path | Contents |
 |---|---|
@@ -107,7 +144,8 @@ To start from scratch, delete that directory.
 3. `dpkg-deb -x` extracts them into `qemu-root/`
 4. `LD_LIBRARY_PATH` is built from every directory containing `.so` files
 5. `QEMU_MODULE_DIR` points to QEMU's dynamic modules (e.g. `accel-tcg-x86_64.so`)
-6. QEMU starts with your `-m` / `-smp` settings, `-nographic`, a virtio disk and an e1000 NIC with your `hostfwd` rules
+6. The Alpine ISO is downloaded to a `.part` file, checked against its `.sha256` and only then moved into place
+7. QEMU starts with your `-m` / `-smp` settings, `-nographic`, a virtio disk and an e1000 NIC with your `hostfwd` rules
 
 ## Limitations
 
