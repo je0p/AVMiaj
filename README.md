@@ -66,7 +66,7 @@ Press `Ctrl+A`, then `X` (kills QEMU).
 
 ## File locations
 
-By default in `~/.debian-vm/` (if your home directory is writable), otherwise in `$TMPDIR/debian-vm/`:
+By default in `~/.avmiaj/` (if your home directory is writable), otherwise in `$TMPDIR/avmiaj/`:
 
 | Path | Contents |
 |---|---|
