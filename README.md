@@ -12,6 +12,8 @@
 
 *AVMiaj = **A**lpine-**VM**-**i**n-**a**-**j**ar*
 
+> **TL;DR:** turn a Minecraft server into a VPS. Got a Java-only panel (Pterodactyl and friends)? Run this jar, get a root Alpine Linux shell.
+
 AVMiaj downloads QEMU on its own (as `.deb` packages extracted locally), fetches the latest Alpine Linux ISO and boots a virtual machine right in your terminal. It works where you don't have admin rights: shared hosting, containers, game/server panels like Pterodactyl.
 
 ## Features
@@ -33,6 +35,9 @@ AVMiaj downloads QEMU on its own (as `.deb` packages extracted locally), fetches
 - About 1 GB of free disk space (QEMU packages + VM disk)
 
 ## Usage
+
+> [!WARNING]
+> Many game hosts forbid running anything other than the game in their ToS. Check your provider's rules before using AVMiaj on their panel, or you risk getting your server suspended or banned.
 
 Compile:
 
